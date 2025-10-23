@@ -80,6 +80,13 @@ type
     { *** Methods using the nullable Redis Values *** }
     function GET(const aKey: string): TRedisString; overload;
     function GET_AsBytes(const aKey: string): TRedisBytes;
+
+    // Redis 6.2+ commands
+    function GETEX(const aKey: string; aExpirationMs: UInt64): TRedisString; overload;
+    function GETEX(const aKey: string; aExpirationSec: UInt64; const UseSeconds: Boolean): TRedisString; overload;
+    function GETDEL(const aKey: string): TRedisString;
+    function COPY(const aSourceKey, aDestKey: string; const aReplace: Boolean = False): Boolean;
+
     function HGET_AsBytes(const aKey, aField: string): TRedisBytes;
     function HGET(const aKey, aField: string): TRedisString; overload;
     function RPOP(const aListKey: string): TRedisString; overload;
@@ -179,6 +186,8 @@ type
     function SCARD(const aKey: string): Integer;
     function SUNION(const aKeys: array of string): TRedisArray;
     function SUNIONSTORE(const aDestination: string; const aKeys: array of string): Integer;
+    // Redis 6.2+ Set commands
+    function SMOVE(const aSource, aDestination, aMember: string): Boolean;
 {$ENDREGION}
     // ordered sets
 {$REGION ORDEREDSETS}
@@ -195,6 +204,11 @@ type
     function ZUNIONSTORE(const aDestination: string; const aNumKeys: NativeInt; const aKeys: array of string): Int64; overload;
     function ZUNIONSTORE(const aDestination: string; const aNumKeys: NativeInt; const aKeys: array of string; const aWeights: array of Integer): Int64; overload;
     function ZUNIONSTORE(const aDestination: string; const aNumKeys: NativeInt; const aKeys: array of string; const aWeights: array of Integer; const aAggregate: TRedisAggregate): Int64; overload;
+    // Redis 5.0+ Sorted Set commands
+    function ZPOPMIN(const aKey: string): TRedisArray; overload;
+    function ZPOPMIN(const aKey: string; aCount: Integer): TRedisArray; overload;
+    function ZPOPMAX(const aKey: string): TRedisArray; overload;
+    function ZPOPMAX(const aKey: string; aCount: Integer): TRedisArray; overload;
 {$ENDREGION}
     // geo REDIS 3.2
     function GEOADD(const Key: string; const Latitude, Longitude: Extended; Member: string): Integer;
@@ -210,6 +224,23 @@ type
       const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
       const Sorting: TRedisSorting = TRedisSorting.None;
       const Count: Int64 = -1): TRedisMatrix;
+    // Redis 6.2+ Geo commands
+    function GEOSEARCH(const Key: string; const FromMember: string;
+      const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+      const Sorting: TRedisSorting = TRedisSorting.None;
+      const Count: Int64 = -1): TRedisArray; overload;
+    function GEOSEARCH(const Key: string; const Longitude, Latitude: Extended;
+      const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+      const Sorting: TRedisSorting = TRedisSorting.None;
+      const Count: Int64 = -1): TRedisArray; overload;
+    function GEOSEARCHSTORE(const Destination, Source: string; const FromMember: string;
+      const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+      const Sorting: TRedisSorting = TRedisSorting.None;
+      const Count: Int64 = -1): Integer; overload;
+    function GEOSEARCHSTORE(const Destination, Source: string; const Longitude, Latitude: Extended;
+      const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+      const Sorting: TRedisSorting = TRedisSorting.None;
+      const Count: Int64 = -1): Integer; overload;
 
     {$REGION STREAMS}
       function XADD(const aStreamName: String; const MaxLength: UInt64; const MaxLengthType: TRedisMaxLengthType; const Keys, Values: array of string; const ID: UInt64 = 0): String; overload;
@@ -1769,6 +1800,17 @@ begin
   Result := ParseIntegerResponse(FValidResponse);
 end;
 
+function TRedisClient.SMOVE(const aSource, aDestination, aMember: string): Boolean;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('SMOVE');
+  lCmd.Add(aSource);
+  lCmd.Add(aDestination);
+  lCmd.Add(aMember);
+  Result := ExecuteWithIntegerResult(lCmd) = 1;
+end;
+
 function TRedisClient.Tokenize(const ARedisCommand: string): TArray<string>;
 var
   C: Char;
@@ -2029,6 +2071,48 @@ begin
   Result := ExecuteWithIntegerResult(FNextCMD);
 end;
 
+function TRedisClient.ZPOPMIN(const aKey: string): TRedisArray;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('ZPOPMIN');
+  lCmd.Add(aKey);
+  FTCPLibInstance.SendCmd(lCmd);
+  Result := ParseArrayResponseNULL;
+end;
+
+function TRedisClient.ZPOPMIN(const aKey: string; aCount: Integer): TRedisArray;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('ZPOPMIN');
+  lCmd.Add(aKey);
+  lCmd.Add(aCount);
+  FTCPLibInstance.SendCmd(lCmd);
+  Result := ParseArrayResponseNULL;
+end;
+
+function TRedisClient.ZPOPMAX(const aKey: string): TRedisArray;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('ZPOPMAX');
+  lCmd.Add(aKey);
+  FTCPLibInstance.SendCmd(lCmd);
+  Result := ParseArrayResponseNULL;
+end;
+
+function TRedisClient.ZPOPMAX(const aKey: string; aCount: Integer): TRedisArray;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('ZPOPMAX');
+  lCmd.Add(aKey);
+  lCmd.Add(aCount);
+  FTCPLibInstance.SendCmd(lCmd);
+  Result := ParseArrayResponseNULL;
+end;
+
 function TRedisClient.ZUNIONSTORE(const aDestination: string; const aNumKeys: NativeInt; const aKeys: array of string): Int64;
 begin
   BuildZUNIONSTOREDefault(aDestination, aNumKeys, aKeys);
@@ -2134,6 +2218,106 @@ begin
   Result := ExecuteAndGetMatrix(lCmd);
 end;
 
+function TRedisClient.GEOSEARCH(const Key: string; const FromMember: string;
+  const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+  const Sorting: TRedisSorting = TRedisSorting.None; const Count: Int64 = -1): TRedisArray;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('GEOSEARCH');
+  lCmd.Add(Key);
+  lCmd.Add('FROMMEMBER');
+  lCmd.Add(FromMember);
+  lCmd.Add('BYRADIUS');
+  lCmd.Add(FormatFloat('0.0000000', Radius, FFormatSettings));
+  lCmd.Add(REDIS_GEO_UNIT_STRING[&Unit]);
+  if Count > -1 then
+    lCmd.Add('COUNT').Add(Count);
+  case Sorting of
+    TRedisSorting.Asc:
+      lCmd.Add('ASC');
+    TRedisSorting.Desc:
+      lCmd.Add('DESC');
+  end;
+  Result := ExecuteAndGetArrayNULL(lCmd);
+end;
+
+function TRedisClient.GEOSEARCH(const Key: string; const Longitude, Latitude: Extended;
+  const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+  const Sorting: TRedisSorting = TRedisSorting.None; const Count: Int64 = -1): TRedisArray;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('GEOSEARCH');
+  lCmd.Add(Key);
+  lCmd.Add('FROMLONLAT');
+  lCmd.Add(FormatFloat('0.0000000', Longitude, FFormatSettings));
+  lCmd.Add(FormatFloat('0.0000000', Latitude, FFormatSettings));
+  lCmd.Add('BYRADIUS');
+  lCmd.Add(FormatFloat('0.0000000', Radius, FFormatSettings));
+  lCmd.Add(REDIS_GEO_UNIT_STRING[&Unit]);
+  if Count > -1 then
+    lCmd.Add('COUNT').Add(Count);
+  case Sorting of
+    TRedisSorting.Asc:
+      lCmd.Add('ASC');
+    TRedisSorting.Desc:
+      lCmd.Add('DESC');
+  end;
+  Result := ExecuteAndGetArrayNULL(lCmd);
+end;
+
+function TRedisClient.GEOSEARCHSTORE(const Destination, Source: string; const FromMember: string;
+  const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+  const Sorting: TRedisSorting = TRedisSorting.None; const Count: Int64 = -1): Integer;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('GEOSEARCHSTORE');
+  lCmd.Add(Destination);
+  lCmd.Add(Source);
+  lCmd.Add('FROMMEMBER');
+  lCmd.Add(FromMember);
+  lCmd.Add('BYRADIUS');
+  lCmd.Add(FormatFloat('0.0000000', Radius, FFormatSettings));
+  lCmd.Add(REDIS_GEO_UNIT_STRING[&Unit]);
+  if Count > -1 then
+    lCmd.Add('COUNT').Add(Count);
+  case Sorting of
+    TRedisSorting.Asc:
+      lCmd.Add('ASC');
+    TRedisSorting.Desc:
+      lCmd.Add('DESC');
+  end;
+  Result := ExecuteWithIntegerResult(lCmd);
+end;
+
+function TRedisClient.GEOSEARCHSTORE(const Destination, Source: string; const Longitude, Latitude: Extended;
+  const Radius: Extended; const &Unit: TRedisGeoUnit = TRedisGeoUnit.Meters;
+  const Sorting: TRedisSorting = TRedisSorting.None; const Count: Int64 = -1): Integer;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('GEOSEARCHSTORE');
+  lCmd.Add(Destination);
+  lCmd.Add(Source);
+  lCmd.Add('FROMLONLAT');
+  lCmd.Add(FormatFloat('0.0000000', Longitude, FFormatSettings));
+  lCmd.Add(FormatFloat('0.0000000', Latitude, FFormatSettings));
+  lCmd.Add('BYRADIUS');
+  lCmd.Add(FormatFloat('0.0000000', Radius, FFormatSettings));
+  lCmd.Add(REDIS_GEO_UNIT_STRING[&Unit]);
+  if Count > -1 then
+    lCmd.Add('COUNT').Add(Count);
+  case Sorting of
+    TRedisSorting.Asc:
+      lCmd.Add('ASC');
+    TRedisSorting.Desc:
+      lCmd.Add('DESC');
+  end;
+  Result := ExecuteWithIntegerResult(lCmd);
+end;
+
 function TRedisClient.GET(const aKey: string; out aValue: TBytes): boolean;
 begin
   Result := GET(BytesOf(aKey), aValue);
@@ -2148,6 +2332,77 @@ begin
     Result := TRedisString.Create(StringOf(lResp.Value))
   else
     Result := TRedisString.Empty;
+end;
+
+// Redis 6.2+ commands implementation
+
+function TRedisClient.GETEX(const aKey: string; aExpirationMs: UInt64): TRedisString;
+var
+  lCmd: IRedisCommand;
+  lResp: TRedisBytes;
+begin
+  lCmd := NewRedisCommand('GETEX');
+  lCmd.Add(aKey);
+  lCmd.Add('EXAT');
+  lCmd.Add(aExpirationMs);
+  FTCPLibInstance.SendCmd(lCmd);
+  lResp := ParseSimpleStringResponseAsByteNULL;
+  if lResp.HasValue then
+    Result := TRedisString.Create(StringOf(lResp.Value))
+  else
+    Result := TRedisString.Empty;
+end;
+
+function TRedisClient.GETEX(const aKey: string; aExpirationSec: UInt64; const UseSeconds: Boolean): TRedisString;
+var
+  lCmd: IRedisCommand;
+  lResp: TRedisBytes;
+begin
+  lCmd := NewRedisCommand('GETEX');
+  lCmd.Add(aKey);
+  if UseSeconds then
+  begin
+    lCmd.Add('EX');
+    lCmd.Add(aExpirationSec);
+  end
+  else
+  begin
+    lCmd.Add('PX');
+    lCmd.Add(aExpirationSec);
+  end;
+  FTCPLibInstance.SendCmd(lCmd);
+  lResp := ParseSimpleStringResponseAsByteNULL;
+  if lResp.HasValue then
+    Result := TRedisString.Create(StringOf(lResp.Value))
+  else
+    Result := TRedisString.Empty;
+end;
+
+function TRedisClient.GETDEL(const aKey: string): TRedisString;
+var
+  lCmd: IRedisCommand;
+  lResp: TRedisBytes;
+begin
+  lCmd := NewRedisCommand('GETDEL');
+  lCmd.Add(aKey);
+  FTCPLibInstance.SendCmd(lCmd);
+  lResp := ParseSimpleStringResponseAsByteNULL;
+  if lResp.HasValue then
+    Result := TRedisString.Create(StringOf(lResp.Value))
+  else
+    Result := TRedisString.Empty;
+end;
+
+function TRedisClient.COPY(const aSourceKey, aDestKey: string; const aReplace: Boolean): Boolean;
+var
+  lCmd: IRedisCommand;
+begin
+  lCmd := NewRedisCommand('COPY');
+  lCmd.Add(aSourceKey);
+  lCmd.Add(aDestKey);
+  if aReplace then
+    lCmd.Add('REPLACE');
+  Result := ExecuteWithIntegerResult(lCmd) = 1;
 end;
 
 end.
