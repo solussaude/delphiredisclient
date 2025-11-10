@@ -1,0 +1,8 @@
+{
+  "name": "delphiredisclient",
+  "version": "1.0.0",
+  "repository": "https://github.com/solussaude/delphiredisclient.git",
+  "license": "MIT",
+  "packageManager": "yarn@4.11.0",
+  "private": true
+}
